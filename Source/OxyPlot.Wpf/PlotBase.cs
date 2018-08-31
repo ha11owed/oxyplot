@@ -37,14 +37,14 @@ namespace OxyPlot.Wpf
         private readonly ObservableCollection<TrackerDefinition> trackerDefinitions;
 
         /// <summary>
-        /// The render context
-        /// </summary>
-        private CanvasRenderContext renderContext;
-
-        /// <summary>
         /// The canvas.
         /// </summary>
         private Canvas canvas;
+
+        /// <summary>
+        /// The cached parent.
+        /// </summary>
+        private FrameworkElement containerCache;
 
         /// <summary>
         /// The current tracker.
@@ -62,6 +62,11 @@ namespace OxyPlot.Wpf
         private int isPlotInvalidated;
 
         /// <summary>
+        /// The is visible to user cache.
+        /// </summary>
+        private bool isVisibleToUserCache;
+
+        /// <summary>
         /// The mouse down point.
         /// </summary>
         private ScreenPoint mouseDownPoint;
@@ -72,19 +77,14 @@ namespace OxyPlot.Wpf
         private Canvas overlays;
 
         /// <summary>
+        /// The render context
+        /// </summary>
+        private CanvasRenderContext renderContext;
+
+        /// <summary>
         /// The zoom control.
         /// </summary>
         private ContentControl zoomControl;
-
-        /// <summary>
-        /// The is visible to user cache.
-        /// </summary>
-        private bool isVisibleToUserCache;
-
-        /// <summary>
-        /// The cached parent.
-        /// </summary>
-        private FrameworkElement containerCache;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="PlotBase" /> class.
@@ -102,32 +102,6 @@ namespace OxyPlot.Wpf
 
             this.IsManipulationEnabled = true;
         }
-
-        /// <summary>
-        /// Gets or sets a value indicating whether to disconnect the canvas while updating.
-        /// </summary>
-        /// <value><c>true</c> if canvas should be disconnected while updating; otherwise, <c>false</c>.</value>
-        public bool DisconnectCanvasWhileUpdating { get; set; }
-
-        /// <summary>
-        /// Gets the actual model in the view.
-        /// </summary>
-        /// <value>
-        /// The actual model.
-        /// </value>
-        Model IView.ActualModel
-        {
-            get
-            {
-                return this.ActualModel;
-            }
-        }
-
-        /// <summary>
-        /// Gets the actual model.
-        /// </summary>
-        /// <value>The actual model.</value>
-        public abstract PlotModel ActualModel { get; }
 
         /// <summary>
         /// Gets the actual controller.
@@ -150,6 +124,26 @@ namespace OxyPlot.Wpf
         public abstract IPlotController ActualController { get; }
 
         /// <summary>
+        /// Gets the actual model in the view.
+        /// </summary>
+        /// <value>
+        /// The actual model.
+        /// </value>
+        Model IView.ActualModel
+        {
+            get
+            {
+                return this.ActualModel;
+            }
+        }
+
+        /// <summary>
+        /// Gets the actual model.
+        /// </summary>
+        /// <value>The actual model.</value>
+        public abstract PlotModel ActualModel { get; }
+
+        /// <summary>
         /// Gets the coordinates of the client area of the view.
         /// </summary>
         public OxyRect ClientArea
@@ -159,6 +153,12 @@ namespace OxyPlot.Wpf
                 return new OxyRect(0, 0, this.ActualWidth, this.ActualHeight);
             }
         }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether to disconnect the canvas while updating.
+        /// </summary>
+        /// <value><c>true</c> if canvas should be disconnected while updating; otherwise, <c>false</c>.</value>
+        public bool DisconnectCanvasWhileUpdating { get; set; }
 
         /// <summary>
         /// Gets the tracker definitions.
@@ -193,47 +193,6 @@ namespace OxyPlot.Wpf
         }
 
         /// <summary>
-        /// Pans all axes.
-        /// </summary>
-        /// <param name="delta">The delta.</param>
-        public void PanAllAxes(Vector delta)
-        {
-            if (this.ActualModel != null)
-            {
-                this.ActualModel.PanAllAxes(delta.X, delta.Y);
-            }
-
-            this.InvalidatePlot(false);
-        }
-
-        /// <summary>
-        /// Zooms all axes.
-        /// </summary>
-        /// <param name="factor">The zoom factor.</param>
-        public void ZoomAllAxes(double factor)
-        {
-            if (this.ActualModel != null)
-            {
-                this.ActualModel.ZoomAllAxes(factor);
-            }
-
-            this.InvalidatePlot(false);
-        }
-
-        /// <summary>
-        /// Resets all axes.
-        /// </summary>
-        public void ResetAllAxes()
-        {
-            if (this.ActualModel != null)
-            {
-                this.ActualModel.ResetAllAxes();
-            }
-
-            this.InvalidatePlot(false);
-        }
-
-        /// <summary>
         /// Invalidate the PlotView (not blocking the UI thread)
         /// </summary>
         /// <param name="updateData">The update Data.</param>
@@ -257,7 +216,7 @@ namespace OxyPlot.Wpf
 
         /// <summary>
         /// When overridden in a derived class, is invoked whenever application code or internal processes (such as a rebuilding layout pass)
-        /// call <see cref="M:System.Windows.Controls.Control.ApplyTemplate" /> . In simplest terms, this means the method is called 
+        /// call <see cref="M:System.Windows.Controls.Control.ApplyTemplate" /> . In simplest terms, this means the method is called
         /// just before a UI element displays in an application. For more information, see Remarks.
         /// </summary>
         public override void OnApplyTemplate()
@@ -284,7 +243,43 @@ namespace OxyPlot.Wpf
             // it must be added last so it covers all other controls
             var mouseGrid = new Grid();
             mouseGrid.Background = Brushes.Transparent; // background must be set for hit test to work
-            this.grid.Children.Add(mouseGrid); 
+            this.grid.Children.Add(mouseGrid);
+        }
+
+        /// <summary>
+        /// Pans all axes.
+        /// </summary>
+        /// <param name="delta">The delta.</param>
+        public void PanAllAxes(Vector delta)
+        {
+            if (this.ActualModel != null)
+            {
+                this.ActualModel.PanAllAxes(delta.X, delta.Y);
+            }
+
+            this.InvalidatePlot(false);
+        }
+
+        /// <summary>
+        /// Resets all axes.
+        /// </summary>
+        public void ResetAllAxes()
+        {
+            if (this.ActualModel != null)
+            {
+                this.ActualModel.ResetAllAxes();
+            }
+
+            this.InvalidatePlot(false);
+        }
+
+        /// <summary>
+        /// Stores text on the clipboard.
+        /// </summary>
+        /// <param name="text">The text.</param>
+        public void SetClipboardText(string text)
+        {
+            Clipboard.SetText(text);
         }
 
         /// <summary>
@@ -298,15 +293,19 @@ namespace OxyPlot.Wpf
                 case CursorType.Pan:
                     this.Cursor = this.PanCursor;
                     break;
+
                 case CursorType.ZoomRectangle:
                     this.Cursor = this.ZoomRectangleCursor;
                     break;
+
                 case CursorType.ZoomHorizontal:
                     this.Cursor = this.ZoomHorizontalCursor;
                     break;
+
                 case CursorType.ZoomVertical:
                     this.Cursor = this.ZoomVerticalCursor;
                     break;
+
                 default:
                     this.Cursor = Cursors.Arrow;
                     break;
@@ -372,12 +371,17 @@ namespace OxyPlot.Wpf
         }
 
         /// <summary>
-        /// Stores text on the clipboard.
+        /// Zooms all axes.
         /// </summary>
-        /// <param name="text">The text.</param>
-        public void SetClipboardText(string text)
+        /// <param name="factor">The zoom factor.</param>
+        public void ZoomAllAxes(double factor)
         {
-            Clipboard.SetText(text);
+            if (this.ActualModel != null)
+            {
+                this.ActualModel.ZoomAllAxes(factor);
+            }
+
+            this.InvalidatePlot(false);
         }
 
         /// <summary>
@@ -396,18 +400,6 @@ namespace OxyPlot.Wpf
             }
 
             return base.ArrangeOverride(finalSize);
-        }
-
-        /// <summary>
-        /// Updates the model.
-        /// </summary>
-        /// <param name="updateData">The update Data.</param>
-        protected virtual void UpdateModel(bool updateData = true)
-        {
-            if (this.ActualModel != null)
-            {
-                ((IPlotModel)this.ActualModel).Update(updateData);
-            }
         }
 
         /// <summary>
@@ -439,21 +431,31 @@ namespace OxyPlot.Wpf
         }
 
         /// <summary>
-        /// Determines whether the specified element is currently visible to the user.
+        /// Updates the model.
         /// </summary>
-        /// <param name="element">The element.</param>
-        /// <param name="container">The container.</param>
-        /// <returns><c>true</c> if if the specified element is currently visible to the user; otherwise, <c>false</c>.</returns>
-        private bool IsUserVisible(FrameworkElement element, FrameworkElement container)
+        /// <param name="updateData">The update Data.</param>
+        protected virtual void UpdateModel(bool updateData = true)
         {
-            if (!container.IsVisible || !element.IsVisible)
+            if (this.ActualModel != null)
             {
-                return false;
+                ((IPlotModel)this.ActualModel).Update(updateData);
             }
+        }
 
-            var bounds = element.TransformToAncestor(container).TransformBounds(new Rect(0.0, 0.0, element.ActualWidth, element.ActualHeight));
-            var rect = new Rect(0.0, 0.0, container.ActualWidth, container.ActualHeight);
-            return bounds.Left < rect.Right && bounds.Right > rect.Left && bounds.Top < rect.Bottom && bounds.Bottom > rect.Top;
+        /// <summary>
+        /// Invokes the specified action on the dispatcher, if necessary.
+        /// </summary>
+        /// <param name="action">The action.</param>
+        private void BeginInvoke(Action action)
+        {
+            if (!this.Dispatcher.CheckAccess())
+            {
+                this.Dispatcher.BeginInvoke(DispatcherPriority.Loaded, action);
+            }
+            else
+            {
+                action();
+            }
         }
 
         /// <summary>
@@ -472,49 +474,6 @@ namespace OxyPlot.Wpf
             var bitmap = PngExporter.ExportToBitmap(
                 this.ActualModel, (int)this.ActualWidth, (int)this.ActualHeight, background);
             Clipboard.SetImage(bitmap);
-        }
-
-        /// <summary>
-        /// Called when the control is loaded.
-        /// </summary>
-        /// <param name="sender">The sender.</param>
-        /// <param name="e">The <see cref="System.Windows.RoutedEventArgs" /> instance containing the event data.</param>
-        private void OnLoaded(object sender, RoutedEventArgs e)
-        {
-            // Make sure InvalidateArrange is called when the PlotView is invalidated
-            Interlocked.Exchange(ref this.isPlotInvalidated, 0);
-            this.InvalidatePlot();
-        }
-
-        /// <summary>
-        /// Called when the layout is updated.
-        /// </summary>
-        /// <param name="sender">The sender.</param>
-        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
-        private void OnLayoutUpdated(object sender, EventArgs e)
-        {
-            var oldValue = this.isVisibleToUserCache;
-            var newValue = this.IsVisibleToUser();
-
-            if (oldValue != newValue)
-            {
-                this.isVisibleToUserCache = newValue;
-                Interlocked.Exchange(ref this.isPlotInvalidated, 1);
-                this.InvalidateVisual();
-            }
-        }
-
-        /// <summary>
-        /// Called when the size of the control is changed.
-        /// </summary>
-        /// <param name="sender">The sender.</param>
-        /// <param name="e">The <see cref="System.Windows.SizeChangedEventArgs" /> instance containing the event data.</param>
-        private void OnSizeChanged(object sender, SizeChangedEventArgs e)
-        {
-            if (e.NewSize.Height > 0 && e.NewSize.Width > 0)
-            {
-                this.InvalidatePlot(false);
-            }
         }
 
         /// <summary>
@@ -549,6 +508,67 @@ namespace OxyPlot.Wpf
         }
 
         /// <summary>
+        /// Determines whether the specified element is currently visible to the user.
+        /// </summary>
+        /// <param name="element">The element.</param>
+        /// <param name="container">The container.</param>
+        /// <returns><c>true</c> if if the specified element is currently visible to the user; otherwise, <c>false</c>.</returns>
+        private bool IsUserVisible(FrameworkElement element, FrameworkElement container)
+        {
+            if (!container.IsVisible || !element.IsVisible)
+            {
+                return false;
+            }
+
+            var bounds = element.TransformToAncestor(container).TransformBounds(new Rect(0.0, 0.0, element.ActualWidth, element.ActualHeight));
+            var rect = new Rect(0.0, 0.0, container.ActualWidth, container.ActualHeight);
+            return bounds.Left < rect.Right && bounds.Right > rect.Left && bounds.Top < rect.Bottom && bounds.Bottom > rect.Top;
+        }
+
+        /// <summary>
+        /// Called when the layout is updated.
+        /// </summary>
+        /// <param name="sender">The sender.</param>
+        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
+        private void OnLayoutUpdated(object sender, EventArgs e)
+        {
+            var oldValue = this.isVisibleToUserCache;
+            var newValue = this.IsVisibleToUser();
+
+            if (oldValue != newValue)
+            {
+                this.isVisibleToUserCache = newValue;
+                Interlocked.Exchange(ref this.isPlotInvalidated, 1);
+                this.InvalidateVisual();
+            }
+        }
+
+        /// <summary>
+        /// Called when the control is loaded.
+        /// </summary>
+        /// <param name="sender">The sender.</param>
+        /// <param name="e">The <see cref="System.Windows.RoutedEventArgs" /> instance containing the event data.</param>
+        private void OnLoaded(object sender, RoutedEventArgs e)
+        {
+            // Make sure InvalidateArrange is called when the PlotView is invalidated
+            Interlocked.Exchange(ref this.isPlotInvalidated, 0);
+            this.InvalidatePlot();
+        }
+
+        /// <summary>
+        /// Called when the size of the control is changed.
+        /// </summary>
+        /// <param name="sender">The sender.</param>
+        /// <param name="e">The <see cref="System.Windows.SizeChangedEventArgs" /> instance containing the event data.</param>
+        private void OnSizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            if (e.NewSize.Height > 0 && e.NewSize.Width > 0)
+            {
+                this.InvalidatePlot(false);
+            }
+        }
+
+        /// <summary>
         /// Updates the visuals.
         /// </summary>
         private void UpdateVisuals()
@@ -564,7 +584,7 @@ namespace OxyPlot.Wpf
             }
 
             // Clear the canvas
-            this.canvas.Children.Clear();
+            this.renderContext.BeginDraw();
 
             if (this.ActualModel != null && this.ActualModel.Background.IsVisible())
             {
@@ -599,22 +619,8 @@ namespace OxyPlot.Wpf
                     ((IPlotModel)this.ActualModel).Render(this.renderContext, this.canvas.ActualWidth, this.canvas.ActualHeight);
                 }
             }
-        }
 
-        /// <summary>
-        /// Invokes the specified action on the dispatcher, if necessary.
-        /// </summary>
-        /// <param name="action">The action.</param>
-        private void BeginInvoke(Action action)
-        {
-            if (!this.Dispatcher.CheckAccess())
-            {
-                this.Dispatcher.BeginInvoke(DispatcherPriority.Loaded, action);
-            }
-            else
-            {
-                action();
-            }
+            this.renderContext.EndDraw();
         }
     }
 }

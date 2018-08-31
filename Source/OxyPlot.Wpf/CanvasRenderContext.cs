@@ -27,7 +27,7 @@ namespace OxyPlot.Wpf
     /// <summary>
     /// Implements <see cref="IRenderContext" /> for <see cref="System.Windows.Controls.Canvas" />.
     /// </summary>
-    public class CanvasRenderContext : IRenderContext
+    public class CanvasRenderContext : DrawOperationCache, IRenderContext
     {
         /// <summary>
         /// The maximum number of figures per geometry.
@@ -45,16 +45,6 @@ namespace OxyPlot.Wpf
         private const int MinPointsPerPolyline = 16;
 
         /// <summary>
-        /// The images in use
-        /// </summary>
-        private readonly HashSet<OxyImage> imagesInUse = new HashSet<OxyImage>();
-
-        /// <summary>
-        /// The image cache
-        /// </summary>
-        private readonly Dictionary<OxyImage, BitmapSource> imageCache = new Dictionary<OxyImage, BitmapSource>();
-
-        /// <summary>
         /// The brush cache.
         /// </summary>
         private readonly Dictionary<OxyColor, Brush> brushCache = new Dictionary<OxyColor, Brush>();
@@ -65,19 +55,14 @@ namespace OxyPlot.Wpf
         private readonly Dictionary<string, FontFamily> fontFamilyCache = new Dictionary<string, FontFamily>();
 
         /// <summary>
-        /// The canvas.
+        /// The image cache
         /// </summary>
-        private readonly Canvas canvas;
+        private readonly Dictionary<OxyImage, BitmapSource> imageCache = new Dictionary<OxyImage, BitmapSource>();
 
         /// <summary>
-        /// The clip rectangle.
+        /// The images in use
         /// </summary>
-        private Rect? clip;
-
-        /// <summary>
-        /// The current tool tip
-        /// </summary>
-        private string currentToolTip;
+        private readonly HashSet<OxyImage> imagesInUse = new HashSet<OxyImage>();
 
         /// <summary>
         /// The pixel scale
@@ -90,7 +75,7 @@ namespace OxyPlot.Wpf
         /// <param name="canvas">The canvas.</param>
         public CanvasRenderContext(Canvas canvas)
         {
-            this.canvas = canvas;
+            this.Init(canvas);
             this.TextFormattingMode = TextFormattingMode.Display;
             this.TextMeasurementMethod = TextMeasurementMethod.TextBlock;
             this.UseStreamGeometry = true;
@@ -110,10 +95,15 @@ namespace OxyPlot.Wpf
         }
 
         /// <summary>
-        /// Gets or sets the text measurement method.
+        /// Gets or sets the thickness limit for "balanced" line drawing.
         /// </summary>
-        /// <value>The text measurement method.</value>
-        public TextMeasurementMethod TextMeasurementMethod { get; set; }
+        public double BalancedLineDrawingThicknessLimit { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the context renders to screen.
+        /// </summary>
+        /// <value><c>true</c> if the context renders to screen; otherwise, <c>false</c>.</value>
+        public bool RendersToScreen { get; set; }
 
         /// <summary>
         /// Gets or sets the text formatting mode.
@@ -122,9 +112,10 @@ namespace OxyPlot.Wpf
         public TextFormattingMode TextFormattingMode { get; set; }
 
         /// <summary>
-        /// Gets or sets the thickness limit for "balanced" line drawing.
+        /// Gets or sets the text measurement method.
         /// </summary>
-        public double BalancedLineDrawingThicknessLimit { get; set; }
+        /// <value>The text measurement method.</value>
+        public TextMeasurementMethod TextMeasurementMethod { get; set; }
 
         /// <summary>
         /// Gets or sets a value indicating whether to use stream geometry for lines and polygons rendering.
@@ -134,10 +125,22 @@ namespace OxyPlot.Wpf
         public bool UseStreamGeometry { get; set; }
 
         /// <summary>
-        /// Gets or sets a value indicating whether the context renders to screen.
+        /// Cleans up resources not in use.
         /// </summary>
-        /// <value><c>true</c> if the context renders to screen; otherwise, <c>false</c>.</value>
-        public bool RendersToScreen { get; set; }
+        /// <remarks>This method is called at the end of each rendering.</remarks>
+        public void CleanUp()
+        {
+            // Find the images in the cache that has not been used since last call to this method
+            var imagesToRelease = this.imageCache.Keys.Where(i => !this.imagesInUse.Contains(i)).ToList();
+
+            // Remove the images from the cache
+            foreach (var i in imagesToRelease)
+            {
+                this.imageCache.Remove(i);
+            }
+
+            this.imagesInUse.Clear();
+        }
 
         /// <summary>
         /// Draws an ellipse.
@@ -148,11 +151,18 @@ namespace OxyPlot.Wpf
         /// <param name="thickness">The thickness (in device independent units, 1/96 inch).</param>
         public void DrawEllipse(OxyRect rect, OxyColor fill, OxyColor stroke, double thickness)
         {
+            DrawResult drawResult = this.Draw(new DrawEllipse(rect, fill, stroke, thickness));
+            if (drawResult == DrawResult.Equal)
+                return;
+
             var e = this.CreateAndAdd<Ellipse>(rect.Left, rect.Top);
-            this.SetStroke(e, stroke, thickness);
-            if (fill.IsVisible())
+            if (drawResult == DrawResult.Different)
             {
-                e.Fill = this.GetCachedBrush(fill);
+                this.SetStroke(e, stroke, thickness);
+                if (fill.IsVisible())
+                {
+                    e.Fill = this.GetCachedBrush(fill);
+                }
             }
 
             e.Width = rect.Width;
@@ -171,6 +181,10 @@ namespace OxyPlot.Wpf
         /// <param name="thickness">The stroke thickness (in device independent units, 1/96 inch).</param>
         public void DrawEllipses(IList<OxyRect> rectangles, OxyColor fill, OxyColor stroke, double thickness)
         {
+            DrawResult drawResult = this.Draw(new DrawEllipses(rectangles, fill, stroke, thickness));
+            if (drawResult == DrawResult.Equal)
+                return;
+
             var path = this.CreateAndAdd<Path>();
             this.SetStroke(path, stroke, thickness);
             if (!fill.IsUndefined())
@@ -185,6 +199,88 @@ namespace OxyPlot.Wpf
             }
 
             path.Data = gg;
+        }
+
+        /// <summary>
+        /// Draws a portion of the specified <see cref="OxyImage" />.
+        /// </summary>
+        /// <param name="source">The source.</param>
+        /// <param name="srcX">The x-coordinate of the upper-left corner of the portion of the source image to draw.</param>
+        /// <param name="srcY">The y-coordinate of the upper-left corner of the portion of the source image to draw.</param>
+        /// <param name="srcWidth">Width of the portion of the source image to draw.</param>
+        /// <param name="srcHeight">Height of the portion of the source image to draw.</param>
+        /// <param name="destX">The x-coordinate of the upper-left corner of drawn image.</param>
+        /// <param name="destY">The y-coordinate of the upper-left corner of drawn image.</param>
+        /// <param name="destWidth">The width of the drawn image.</param>
+        /// <param name="destHeight">The height of the drawn image.</param>
+        /// <param name="opacity">The opacity.</param>
+        /// <param name="interpolate">interpolate if set to <c>true</c>.</param>
+        public void DrawImage(
+            OxyImage source,
+            double srcX,
+            double srcY,
+            double srcWidth,
+            double srcHeight,
+            double destX,
+            double destY,
+            double destWidth,
+            double destHeight,
+            double opacity,
+            bool interpolate)
+        {
+            if (destWidth <= 0 || destHeight <= 0 || srcWidth <= 0 || srcHeight <= 0)
+            {
+                return;
+            }
+
+            DrawResult drawResult = this.Draw(new DrawImage(source,
+                srcX, srcY,
+                srcWidth, srcHeight,
+                destX, destY,
+                destWidth, destHeight,
+                opacity, interpolate));
+            Image image = null;
+            switch (drawResult)
+            {
+                case DrawResult.Equal:
+                    return;
+
+                case DrawResult.Different:
+                    image = this.CreateAndAdd<Image>(destX, destY);
+                    var bitmapChain = this.GetImageSource(source);
+
+                    // ReSharper disable CompareOfFloatsByEqualityOperator
+                    if (srcX == 0 && srcY == 0 && srcWidth == bitmapChain.PixelWidth && srcHeight == bitmapChain.PixelHeight)
+                    // ReSharper restore CompareOfFloatsByEqualityOperator
+                    {
+                        // do not crop
+                    }
+                    else
+                    {
+                        bitmapChain = new CroppedBitmap(bitmapChain, new Int32Rect((int)srcX, (int)srcY, (int)srcWidth, (int)srcHeight));
+                    }
+
+                    image.Opacity = opacity;
+                    image.Width = destWidth;
+                    image.Height = destHeight;
+                    image.Stretch = Stretch.Fill;
+                    RenderOptions.SetBitmapScalingMode(image, interpolate ? BitmapScalingMode.HighQuality : BitmapScalingMode.NearestNeighbor);
+
+                    // Set the position of the image
+                    Canvas.SetLeft(image, destX);
+                    Canvas.SetTop(image, destY);
+                    //// alternative: image.RenderTransform = new TranslateTransform(destX, destY);
+
+                    image.Source = bitmapChain;
+                    break;
+
+                case DrawResult.Moved:
+                    image = this.GetNext<Image>();
+                    // Set the position of the image
+                    Canvas.SetLeft(image, destX);
+                    Canvas.SetTop(image, destY);
+                    break;
+            }
         }
 
         /// <summary>
@@ -209,6 +305,10 @@ namespace OxyPlot.Wpf
                 this.DrawLineBalanced(points, stroke, thickness, dashArray, lineJoin, aliased);
                 return;
             }
+
+            DrawResult drawResult = this.Draw(new DrawLine(points, stroke, thickness, dashArray, lineJoin, aliased, DrawLineType.Normal));
+            if (drawResult == DrawResult.Equal)
+                return;
 
             var e = this.CreateAndAdd<Polyline>();
             this.SetStroke(e, stroke, thickness, lineJoin, dashArray, 0, aliased);
@@ -239,6 +339,10 @@ namespace OxyPlot.Wpf
                 this.DrawLineSegmentsByStreamGeometry(points, stroke, thickness, dashArray, lineJoin, aliased);
                 return;
             }
+
+            DrawResult drawResult = this.Draw(new DrawLine(points, stroke, thickness, dashArray, lineJoin, aliased, DrawLineType.Segments));
+            if (drawResult == DrawResult.Equal)
+                return;
 
             Path path = null;
             PathGeometry pathGeometry = null;
@@ -294,6 +398,10 @@ namespace OxyPlot.Wpf
             LineJoin lineJoin,
             bool aliased)
         {
+            DrawResult drawResult = this.Draw(new DrawPolygon(points, fill, stroke, thickness, dashArray, lineJoin, aliased));
+            if (drawResult == DrawResult.Equal)
+                return;
+
             var e = this.CreateAndAdd<Polygon>();
             this.SetStroke(e, stroke, thickness, lineJoin, dashArray, 0, aliased);
 
@@ -325,6 +433,10 @@ namespace OxyPlot.Wpf
             LineJoin lineJoin,
             bool aliased)
         {
+            DrawResult drawResult = this.Draw(new DrawPolygons(polygons, fill, stroke, thickness, dashArray, lineJoin, aliased));
+            if (drawResult == DrawResult.Equal)
+                return;
+
             var usg = this.UseStreamGeometry;
             Path path = null;
             StreamGeometry streamGeometry = null;
@@ -434,6 +546,11 @@ namespace OxyPlot.Wpf
         /// <param name="thickness">The stroke thickness (in device independent units, 1/96 inch).</param>
         public void DrawRectangle(OxyRect rect, OxyColor fill, OxyColor stroke, double thickness)
         {
+            if (this.Draw(new DrawRectangle(rect, fill, stroke, thickness)) == DrawResult.Equal)
+            {
+                return;
+            }
+
             var e = this.CreateAndAdd<Rectangle>(rect.Left, rect.Top);
             this.SetStroke(e, stroke, thickness, LineJoin.Miter, null, 0, true);
 
@@ -458,6 +575,11 @@ namespace OxyPlot.Wpf
         /// <param name="thickness">The stroke thickness (in device independent units, 1/96 inch).</param>
         public void DrawRectangles(IList<OxyRect> rectangles, OxyColor fill, OxyColor stroke, double thickness)
         {
+            if (this.Draw(new DrawRectangles(rectangles, fill, stroke, thickness)) == DrawResult.Equal)
+            {
+                return;
+            }
+
             var path = this.CreateAndAdd<Path>();
             this.SetStroke(path, stroke, thickness);
             if (!fill.IsUndefined())
@@ -499,6 +621,12 @@ namespace OxyPlot.Wpf
             VerticalAlignment valign,
             OxySize? maxSize)
         {
+            DrawResult drawResult = this.Draw(new DrawText(p, text, fill, fontFamily, fontSize, fontWeight, rotate, halign, valign, maxSize));
+            if (drawResult == DrawResult.Equal)
+            {
+                return;
+            }
+
             var tb = this.CreateAndAdd<TextBlock>();
             tb.Text = text;
             tb.Foreground = this.GetCachedBrush(fill);
@@ -627,112 +755,6 @@ namespace OxyPlot.Wpf
         }
 
         /// <summary>
-        /// Sets the tool tip for the following items.
-        /// </summary>
-        /// <param name="text">The text in the tool tip.</param>
-        public void SetToolTip(string text)
-        {
-            this.currentToolTip = text;
-        }
-
-        /// <summary>
-        /// Draws a portion of the specified <see cref="OxyImage" />.
-        /// </summary>
-        /// <param name="source">The source.</param>
-        /// <param name="srcX">The x-coordinate of the upper-left corner of the portion of the source image to draw.</param>
-        /// <param name="srcY">The y-coordinate of the upper-left corner of the portion of the source image to draw.</param>
-        /// <param name="srcWidth">Width of the portion of the source image to draw.</param>
-        /// <param name="srcHeight">Height of the portion of the source image to draw.</param>
-        /// <param name="destX">The x-coordinate of the upper-left corner of drawn image.</param>
-        /// <param name="destY">The y-coordinate of the upper-left corner of drawn image.</param>
-        /// <param name="destWidth">The width of the drawn image.</param>
-        /// <param name="destHeight">The height of the drawn image.</param>
-        /// <param name="opacity">The opacity.</param>
-        /// <param name="interpolate">interpolate if set to <c>true</c>.</param>
-        public void DrawImage(
-            OxyImage source,
-            double srcX,
-            double srcY,
-            double srcWidth,
-            double srcHeight,
-            double destX,
-            double destY,
-            double destWidth,
-            double destHeight,
-            double opacity,
-            bool interpolate)
-        {
-            if (destWidth <= 0 || destHeight <= 0 || srcWidth <= 0 || srcHeight <= 0)
-            {
-                return;
-            }
-
-            var image = this.CreateAndAdd<Image>(destX, destY);
-            var bitmapChain = this.GetImageSource(source);
-
-            // ReSharper disable CompareOfFloatsByEqualityOperator
-            if (srcX == 0 && srcY == 0 && srcWidth == bitmapChain.PixelWidth && srcHeight == bitmapChain.PixelHeight)
-            // ReSharper restore CompareOfFloatsByEqualityOperator
-            {
-                // do not crop
-            }
-            else
-            {
-                bitmapChain = new CroppedBitmap(bitmapChain, new Int32Rect((int)srcX, (int)srcY, (int)srcWidth, (int)srcHeight));
-            }
-
-            image.Opacity = opacity;
-            image.Width = destWidth;
-            image.Height = destHeight;
-            image.Stretch = Stretch.Fill;
-            RenderOptions.SetBitmapScalingMode(image, interpolate ? BitmapScalingMode.HighQuality : BitmapScalingMode.NearestNeighbor);
-
-            // Set the position of the image
-            Canvas.SetLeft(image, destX);
-            Canvas.SetTop(image, destY);
-            //// alternative: image.RenderTransform = new TranslateTransform(destX, destY);
-
-            image.Source = bitmapChain;
-        }
-
-        /// <summary>
-        /// Sets the clipping rectangle.
-        /// </summary>
-        /// <param name="clippingRect">The clipping rectangle.</param>
-        /// <returns><c>true</c> if the clip rectangle was set.</returns>
-        public bool SetClip(OxyRect clippingRect)
-        {
-            this.clip = this.ToRect(clippingRect);
-            return true;
-        }
-
-        /// <summary>
-        /// Resets the clip rectangle.
-        /// </summary>
-        public void ResetClip()
-        {
-            this.clip = null;
-        }
-
-        /// <summary>
-        /// Cleans up resources not in use.
-        /// </summary>
-        /// <remarks>This method is called at the end of each rendering.</remarks>
-        public void CleanUp()
-        {
-            // Find the images in the cache that has not been used since last call to this method
-            var imagesToRelease = this.imageCache.Keys.Where(i => !this.imagesInUse.Contains(i)).ToList();
-
-            // Remove the images from the cache
-            foreach (var i in imagesToRelease)
-            {
-                this.imageCache.Remove(i);
-            }
-
-            this.imagesInUse.Clear();
-        }
-
-        /// <summary>
         /// Measures the size of the specified text by a faster method (using GlyphTypefaces).
         /// </summary>
         /// <param name="text">The text.</param>
@@ -813,42 +835,75 @@ namespace OxyPlot.Wpf
         }
 
         /// <summary>
-        /// Creates an element of the specified type and adds it to the canvas.
+        /// Draws the line using the MaxPolylinesPerLine and MinPointsPerPolyline properties.
         /// </summary>
-        /// <typeparam name="T">Type of element to create.</typeparam>
-        /// <param name="clipOffsetX">The clip offset executable.</param>
-        /// <param name="clipOffsetY">The clip offset asynchronous.</param>
-        /// <returns>The element.</returns>
-        private T CreateAndAdd<T>(double clipOffsetX = 0, double clipOffsetY = 0) where T : FrameworkElement, new()
+        /// <param name="points">The points.</param>
+        /// <param name="stroke">The stroke color.</param>
+        /// <param name="thickness">The thickness.</param>
+        /// <param name="dashArray">The dash array. Use <c>null</c> to get a solid line.</param>
+        /// <param name="lineJoin">The line join.</param>
+        /// <param name="aliased">Render aliased if set to <c>true</c>.</param>
+        /// <remarks>See <a href="https://oxyplot.codeplex.com/discussions/456679">discussion</a>.</remarks>
+        private void DrawLineBalanced(IList<ScreenPoint> points, OxyColor stroke, double thickness, double[] dashArray, LineJoin lineJoin, bool aliased)
         {
-            // TODO: here we can reuse existing elements in the canvas.Children collection
-            var element = new T();
+            DrawResult drawResult = this.Draw(new DrawLine(points, stroke, thickness, dashArray, lineJoin, aliased, DrawLineType.Balanced));
+            if (drawResult == DrawResult.Equal)
+                return;
 
-            if (this.clip != null)
+            // balance the number of points per polyline and the number of polylines
+            var numPointsPerPolyline = Math.Max(points.Count / MaxPolylinesPerLine, MinPointsPerPolyline);
+
+            var polyline = this.CreateAndAdd<Polyline>();
+            this.SetStroke(polyline, stroke, thickness, lineJoin, dashArray, 0, aliased);
+            var pc = new PointCollection(numPointsPerPolyline);
+
+            var n = points.Count;
+            double lineLength = 0;
+            var dashPatternLength = (dashArray != null) ? dashArray.Sum() : 0;
+            var last = new Point();
+            for (int i = 0; i < n; i++)
             {
-                element.Clip = new RectangleGeometry(
-                        new Rect(
-                            this.clip.Value.X - clipOffsetX,
-                            this.clip.Value.Y - clipOffsetY,
-                            this.clip.Value.Width,
-                            this.clip.Value.Height));
+                var p = aliased ? this.ToPixelAlignedPoint(points[i]) : this.ToPoint(points[i]);
+                pc.Add(p);
+
+                // alt. 1
+                if (dashArray != null)
+                {
+                    if (i > 0)
+                    {
+                        var delta = p - last;
+                        var dist = Math.Sqrt((delta.X * delta.X) + (delta.Y * delta.Y));
+                        lineLength += dist;
+                    }
+
+                    last = p;
+                }
+
+                // use multiple polylines with limited number of points to improve WPF performance
+                if (pc.Count >= numPointsPerPolyline)
+                {
+                    polyline.Points = pc;
+
+                    if (i < n - 1)
+                    {
+                        // alt.2
+                        ////if (dashArray != null)
+                        ////{
+                        ////    lineLength += this.GetLength(polyline);
+                        ////}
+
+                        // start a new polyline at last point so there is no gap (it is not necessary to use the % operator)
+                        var dashOffset = dashPatternLength > 0 ? lineLength / thickness : 0;
+                        polyline = this.CreateAndAdd<Polyline>();
+                        this.SetStroke(polyline, stroke, thickness, lineJoin, dashArray, dashOffset, aliased);
+                        pc = new PointCollection(numPointsPerPolyline) { pc.Last() };
+                    }
+                }
             }
 
-            this.canvas.Children.Add(element);
-
-            this.ApplyToolTip(element);
-            return element;
-        }
-
-        /// <summary>
-        /// Applies the current tool tip to the specified element.
-        /// </summary>
-        /// <param name="element">The element.</param>
-        private void ApplyToolTip(FrameworkElement element)
-        {
-            if (!string.IsNullOrEmpty(this.currentToolTip))
+            if (pc.Count > 1 || n == 1)
             {
-                element.ToolTip = this.currentToolTip;
+                polyline.Points = pc;
             }
         }
 
@@ -869,6 +924,10 @@ namespace OxyPlot.Wpf
             LineJoin lineJoin,
             bool aliased)
         {
+            DrawResult drawResult = this.Draw(new DrawLine(points, stroke, thickness, dashArray, lineJoin, aliased, DrawLineType.StreamGeometry));
+            if (drawResult == DrawResult.Equal)
+                return;
+
             StreamGeometry streamGeometry = null;
             StreamGeometryContext streamGeometryContext = null;
 
@@ -954,61 +1013,6 @@ namespace OxyPlot.Wpf
         }
 
         /// <summary>
-        /// Sets the stroke properties of the specified shape object.
-        /// </summary>
-        /// <param name="shape">The shape.</param>
-        /// <param name="stroke">The stroke color.</param>
-        /// <param name="thickness">The thickness.</param>
-        /// <param name="lineJoin">The line join.</param>
-        /// <param name="dashArray">The dash array. Use <c>null</c> to get a solid line.</param>
-        /// <param name="dashOffset">The dash offset.</param>
-        /// <param name="aliased">The aliased.</param>
-        private void SetStroke(
-            Shape shape,
-            OxyColor stroke,
-            double thickness,
-            LineJoin lineJoin = LineJoin.Miter,
-            IEnumerable<double> dashArray = null,
-            double dashOffset = 0,
-            bool aliased = false)
-        {
-            if (!stroke.IsUndefined() && thickness > 0)
-            {
-                shape.Stroke = this.GetCachedBrush(stroke);
-
-                switch (lineJoin)
-                {
-                    case LineJoin.Round:
-                        shape.StrokeLineJoin = PenLineJoin.Round;
-                        break;
-                    case LineJoin.Bevel:
-                        shape.StrokeLineJoin = PenLineJoin.Bevel;
-                        break;
-
-                    // The default StrokeLineJoin is Miter
-                }
-
-                if (Math.Abs(thickness - 1) > double.Epsilon)
-                {
-                    // only set if different from the default value (1)
-                    shape.StrokeThickness = thickness;
-                }
-
-                if (dashArray != null)
-                {
-                    shape.StrokeDashArray = new DoubleCollection(dashArray);
-                    shape.StrokeDashOffset = dashOffset;
-                }
-            }
-
-            if (aliased)
-            {
-                shape.SetValue(RenderOptions.EdgeModeProperty, EdgeMode.Aliased);
-                shape.SnapsToDevicePixels = true;
-            }
-        }
-
-        /// <summary>
         /// Gets the bitmap source.
         /// </summary>
         /// <param name="image">The image.</param>
@@ -1045,82 +1049,59 @@ namespace OxyPlot.Wpf
         }
 
         /// <summary>
-        /// Draws the line using the MaxPolylinesPerLine and MinPointsPerPolyline properties.
+        /// Sets the stroke properties of the specified shape object.
         /// </summary>
-        /// <param name="points">The points.</param>
+        /// <param name="shape">The shape.</param>
         /// <param name="stroke">The stroke color.</param>
         /// <param name="thickness">The thickness.</param>
-        /// <param name="dashArray">The dash array. Use <c>null</c> to get a solid line.</param>
         /// <param name="lineJoin">The line join.</param>
-        /// <param name="aliased">Render aliased if set to <c>true</c>.</param>
-        /// <remarks>See <a href="https://oxyplot.codeplex.com/discussions/456679">discussion</a>.</remarks>
-        private void DrawLineBalanced(IList<ScreenPoint> points, OxyColor stroke, double thickness, double[] dashArray, LineJoin lineJoin, bool aliased)
+        /// <param name="dashArray">The dash array. Use <c>null</c> to get a solid line.</param>
+        /// <param name="dashOffset">The dash offset.</param>
+        /// <param name="aliased">The aliased.</param>
+        private void SetStroke(
+            Shape shape,
+            OxyColor stroke,
+            double thickness,
+            LineJoin lineJoin = LineJoin.Miter,
+            IEnumerable<double> dashArray = null,
+            double dashOffset = 0,
+            bool aliased = false)
         {
-            // balance the number of points per polyline and the number of polylines
-            var numPointsPerPolyline = Math.Max(points.Count / MaxPolylinesPerLine, MinPointsPerPolyline);
-
-            var polyline = this.CreateAndAdd<Polyline>();
-            this.SetStroke(polyline, stroke, thickness, lineJoin, dashArray, 0, aliased);
-            var pc = new PointCollection(numPointsPerPolyline);
-
-            var n = points.Count;
-            double lineLength = 0;
-            var dashPatternLength = (dashArray != null) ? dashArray.Sum() : 0;
-            var last = new Point();
-            for (int i = 0; i < n; i++)
+            if (!stroke.IsUndefined() && thickness > 0)
             {
-                var p = aliased ? this.ToPixelAlignedPoint(points[i]) : this.ToPoint(points[i]);
-                pc.Add(p);
+                shape.Stroke = this.GetCachedBrush(stroke);
 
-                // alt. 1
+                switch (lineJoin)
+                {
+                    case LineJoin.Round:
+                        shape.StrokeLineJoin = PenLineJoin.Round;
+                        break;
+
+                    case LineJoin.Bevel:
+                        shape.StrokeLineJoin = PenLineJoin.Bevel;
+                        break;
+
+                        // The default StrokeLineJoin is Miter
+                }
+
+                if (Math.Abs(thickness - 1) > double.Epsilon)
+                {
+                    // only set if different from the default value (1)
+                    shape.StrokeThickness = thickness;
+                }
+
                 if (dashArray != null)
                 {
-                    if (i > 0)
-                    {
-                        var delta = p - last;
-                        var dist = Math.Sqrt((delta.X * delta.X) + (delta.Y * delta.Y));
-                        lineLength += dist;
-                    }
-
-                    last = p;
-                }
-
-                // use multiple polylines with limited number of points to improve WPF performance
-                if (pc.Count >= numPointsPerPolyline)
-                {
-                    polyline.Points = pc;
-
-                    if (i < n - 1)
-                    {
-                        // alt.2
-                        ////if (dashArray != null)
-                        ////{
-                        ////    lineLength += this.GetLength(polyline);
-                        ////}
-
-                        // start a new polyline at last point so there is no gap (it is not necessary to use the % operator)
-                        var dashOffset = dashPatternLength > 0 ? lineLength / thickness : 0;
-                        polyline = this.CreateAndAdd<Polyline>();
-                        this.SetStroke(polyline, stroke, thickness, lineJoin, dashArray, dashOffset, aliased);
-                        pc = new PointCollection(numPointsPerPolyline) { pc.Last() };
-                    }
+                    shape.StrokeDashArray = new DoubleCollection(dashArray);
+                    shape.StrokeDashOffset = dashOffset;
                 }
             }
 
-            if (pc.Count > 1 || n == 1)
+            if (aliased)
             {
-                polyline.Points = pc;
+                shape.SetValue(RenderOptions.EdgeModeProperty, EdgeMode.Aliased);
+                shape.SnapsToDevicePixels = true;
             }
-        }
-
-        /// <summary>
-        /// Converts a <see cref="ScreenPoint" /> to a <see cref="Point" />.
-        /// </summary>
-        /// <param name="pt">The screen point.</param>
-        /// <returns>A <see cref="Point" />.</returns>
-        private Point ToPoint(ScreenPoint pt)
-        {
-            return new Point(pt.X, pt.Y);
         }
 
         /// <summary>
@@ -1138,16 +1119,6 @@ namespace OxyPlot.Wpf
         }
 
         /// <summary>
-        /// Converts an <see cref="OxyRect" /> to a <see cref="Rect" />.
-        /// </summary>
-        /// <param name="r">The rectangle.</param>
-        /// <returns>A <see cref="Rect" />.</returns>
-        private Rect ToRect(OxyRect r)
-        {
-            return new Rect(r.Left, r.Top, r.Width, r.Height);
-        }
-
-        /// <summary>
         /// Converts an <see cref="OxyRect" /> to a pixel aligned <see cref="Rect" />.
         /// </summary>
         /// <param name="r">The rectangle.</param>
@@ -1160,6 +1131,16 @@ namespace OxyPlot.Wpf
             double ri = 0.5 + (int)r.Right;
             double bo = 0.5 + (int)r.Bottom;
             return new Rect(x, y, ri - x, bo - y);
+        }
+
+        /// <summary>
+        /// Converts a <see cref="ScreenPoint" /> to a <see cref="Point" />.
+        /// </summary>
+        /// <param name="pt">The screen point.</param>
+        /// <returns>A <see cref="Point" />.</returns>
+        private Point ToPoint(ScreenPoint pt)
+        {
+            return new Point(pt.X, pt.Y);
         }
 
         /// <summary>
