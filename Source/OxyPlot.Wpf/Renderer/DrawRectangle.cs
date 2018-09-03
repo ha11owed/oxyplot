@@ -15,12 +15,17 @@
         public OxyColor Stroke { get; }
         public double Thickness { get; }
 
+        public override bool Equals(DrawRectangle other)
+        {
+            return Rect.Equals(other.Rect)
+                && Fill.Equals(other.Fill)
+                && Stroke.Equals(other.Stroke)
+                && Thickness == other.Thickness;
+        }
+
         public override bool Transposed(DrawRectangle other)
         {
-            return Transposed(Rect, other.Rect)
-                && Equals(Fill, other.Fill)
-                && Equals(Stroke, other.Stroke)
-                && Equals(Thickness, other.Thickness);
+            return Transposed(Rect, other.Rect);
         }
     }
 }

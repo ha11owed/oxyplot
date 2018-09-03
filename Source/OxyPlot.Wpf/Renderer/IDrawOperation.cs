@@ -1,10 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Windows;
 
 namespace OxyPlot.Wpf
 {
-    public interface IDrawOperation : IEquatable<IDrawOperation>
+    public interface IDrawOperation
     {
         IList<FrameworkElement> UIElements { get; }
 

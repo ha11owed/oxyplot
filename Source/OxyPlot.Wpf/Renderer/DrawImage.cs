@@ -36,17 +36,22 @@ namespace OxyPlot.Wpf
         public double SrcX { get; }
         public double SrcY { get; }
 
+        public override bool Equals(DrawImage other)
+        {
+            return DestHeight == other.DestHeight
+                && DestWidth == other.DestWidth
+                && Interpolate == other.Interpolate
+                && Opacity == other.Opacity
+                && SrcHeight == other.SrcHeight
+                && SrcWidth == other.SrcWidth
+                && SrcX == other.SrcX
+                && SrcY == other.SrcY
+                && (Source == other.Source);
+        }
+
         public override bool Transposed(DrawImage other)
         {
-            return Equals(DestHeight, other.DestHeight)
-                && Equals(DestWidth, other.DestWidth)
-                && Equals(Interpolate, other.Interpolate)
-                && Equals(Opacity, other.Opacity)
-                && Equals(SrcHeight, other.SrcHeight)
-                && Equals(SrcWidth, other.SrcWidth)
-                && Equals(SrcX, other.SrcX)
-                && Equals(SrcY, other.SrcY)
-                && Equals(Source, other.Source);
+            return Equals(other);
         }
     }
 }

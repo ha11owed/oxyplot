@@ -12,6 +12,7 @@ namespace OxyPlot.Wpf
             DashArray = dashArray;
             LineJoin = lineJoin;
             Aliased = aliased;
+            Type = type;
         }
 
         public bool Aliased { get; }
@@ -22,15 +23,20 @@ namespace OxyPlot.Wpf
         public double Thickness { get; }
         public DrawLineType Type { get; }
 
-        public override bool Transposed(DrawLine other)
+        public override bool Equals(DrawLine other)
         {
             return Aliased == other.Aliased
                 && ArrayEquals(DashArray, other.DashArray)
                 && LineJoin == other.LineJoin
-                && Transposed(Points, other.Points)
+                && ListEquals(Points, other.Points)
                 && Stroke == other.Stroke
                 && Thickness == other.Thickness
                 && Type == other.Type;
+        }
+
+        public override bool Transposed(DrawLine other)
+        {
+            return Transposed(Points, other.Points);
         }
     }
 }

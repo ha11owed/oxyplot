@@ -182,14 +182,25 @@ namespace OxyPlot.Wpf
         public void DrawEllipses(IList<OxyRect> rectangles, OxyColor fill, OxyColor stroke, double thickness)
         {
             DrawResult drawResult = this.Draw(new DrawEllipses(rectangles, fill, stroke, thickness));
-            if (drawResult == DrawResult.Equal)
-                return;
 
-            var path = this.CreateAndAdd<Path>();
-            this.SetStroke(path, stroke, thickness);
-            if (!fill.IsUndefined())
+            Path path = null;
+            switch (drawResult)
             {
-                path.Fill = this.GetCachedBrush(fill);
+                case DrawResult.Equal:
+                    return;
+
+                case DrawResult.Different:
+                    path = this.CreateAndAdd<Path>();
+                    this.SetStroke(path, stroke, thickness);
+                    if (!fill.IsUndefined())
+                    {
+                        path.Fill = this.GetCachedBrush(fill);
+                    }
+                    break;
+
+                case DrawResult.Moved:
+                    path = this.GetNext<Path>();
+                    break;
             }
 
             var gg = new GeometryGroup { FillRule = FillRule.Nonzero };
@@ -275,7 +286,7 @@ namespace OxyPlot.Wpf
                     break;
 
                 case DrawResult.Moved:
-                    image = this.GetNext<Image>();
+                    image = this.GetNext<Image>(destX, destY);
                     // Set the position of the image
                     Canvas.SetLeft(image, destX);
                     Canvas.SetTop(image, destY);
@@ -307,11 +318,23 @@ namespace OxyPlot.Wpf
             }
 
             DrawResult drawResult = this.Draw(new DrawLine(points, stroke, thickness, dashArray, lineJoin, aliased, DrawLineType.Normal));
-            if (drawResult == DrawResult.Equal)
-                return;
 
-            var e = this.CreateAndAdd<Polyline>();
-            this.SetStroke(e, stroke, thickness, lineJoin, dashArray, 0, aliased);
+            Polyline e = null;
+            switch (drawResult)
+            {
+                case DrawResult.Equal:
+                    return;
+
+                case DrawResult.Different:
+                    e = this.CreateAndAdd<Polyline>();
+                    this.SetStroke(e, stroke, thickness, lineJoin, dashArray, 0, aliased);
+
+                    break;
+
+                case DrawResult.Moved:
+                    e = this.GetNext<Polyline>();
+                    break;
+            }
 
             e.Points = this.ToPointCollection(points, aliased);
         }
@@ -399,15 +422,26 @@ namespace OxyPlot.Wpf
             bool aliased)
         {
             DrawResult drawResult = this.Draw(new DrawPolygon(points, fill, stroke, thickness, dashArray, lineJoin, aliased));
-            if (drawResult == DrawResult.Equal)
-                return;
 
-            var e = this.CreateAndAdd<Polygon>();
-            this.SetStroke(e, stroke, thickness, lineJoin, dashArray, 0, aliased);
-
-            if (!fill.IsUndefined())
+            Polygon e = null;
+            switch (drawResult)
             {
-                e.Fill = this.GetCachedBrush(fill);
+                case DrawResult.Equal:
+                    return;
+
+                case DrawResult.Different:
+                    e = this.CreateAndAdd<Polygon>();
+                    this.SetStroke(e, stroke, thickness, lineJoin, dashArray, 0, aliased);
+
+                    if (!fill.IsUndefined())
+                    {
+                        e.Fill = this.GetCachedBrush(fill);
+                    }
+                    break;
+
+                case DrawResult.Moved:
+                    e = this.GetNext<Polygon>();
+                    break;
             }
 
             e.Points = this.ToPointCollection(points, aliased);
@@ -546,17 +580,27 @@ namespace OxyPlot.Wpf
         /// <param name="thickness">The stroke thickness (in device independent units, 1/96 inch).</param>
         public void DrawRectangle(OxyRect rect, OxyColor fill, OxyColor stroke, double thickness)
         {
-            if (this.Draw(new DrawRectangle(rect, fill, stroke, thickness)) == DrawResult.Equal)
-            {
-                return;
-            }
+            DrawResult drawResult = this.Draw(new DrawRectangle(rect, fill, stroke, thickness));
 
-            var e = this.CreateAndAdd<Rectangle>(rect.Left, rect.Top);
-            this.SetStroke(e, stroke, thickness, LineJoin.Miter, null, 0, true);
-
-            if (!fill.IsUndefined())
+            Rectangle e = null;
+            switch (drawResult)
             {
-                e.Fill = this.GetCachedBrush(fill);
+                case DrawResult.Equal:
+                    return;
+
+                case DrawResult.Different:
+                    e = this.CreateAndAdd<Rectangle>(rect.Left, rect.Top);
+                    this.SetStroke(e, stroke, thickness, LineJoin.Miter, null, 0, true);
+
+                    if (!fill.IsUndefined())
+                    {
+                        e.Fill = this.GetCachedBrush(fill);
+                    }
+                    break;
+
+                case DrawResult.Moved:
+                    e = this.GetNext<Rectangle>(rect.Left, rect.Top);
+                    break;
             }
 
             e.Width = rect.Width;
@@ -575,16 +619,26 @@ namespace OxyPlot.Wpf
         /// <param name="thickness">The stroke thickness (in device independent units, 1/96 inch).</param>
         public void DrawRectangles(IList<OxyRect> rectangles, OxyColor fill, OxyColor stroke, double thickness)
         {
-            if (this.Draw(new DrawRectangles(rectangles, fill, stroke, thickness)) == DrawResult.Equal)
-            {
-                return;
-            }
+            DrawResult drawResult = this.Draw(new DrawRectangles(rectangles, fill, stroke, thickness));
+            Path path = null;
 
-            var path = this.CreateAndAdd<Path>();
-            this.SetStroke(path, stroke, thickness);
-            if (!fill.IsUndefined())
+            switch (drawResult)
             {
-                path.Fill = this.GetCachedBrush(fill);
+                case DrawResult.Equal:
+                    return;
+
+                case DrawResult.Different:
+                    path = this.CreateAndAdd<Path>();
+                    this.SetStroke(path, stroke, thickness);
+                    if (!fill.IsUndefined())
+                    {
+                        path.Fill = this.GetCachedBrush(fill);
+                    }
+                    break;
+
+                case DrawResult.Moved:
+                    path = this.GetNext<Path>();
+                    break;
             }
 
             var gg = new GeometryGroup { FillRule = FillRule.Nonzero };

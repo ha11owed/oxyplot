@@ -29,15 +29,20 @@ namespace OxyPlot.Wpf
         public OxyColor Stroke { get; }
         public double Thickness { get; }
 
-        public override bool Transposed(DrawPolygons other)
+        public override bool Equals(DrawPolygons other)
         {
-            return Transposed(Polygons, other.Polygons)
-                && Equals(Fill, other.Fill)
-                && Equals(Stroke, other.Stroke)
-                && Equals(Thickness, other.Thickness)
+            return ListEquals(Polygons, other.Polygons)
+                && Fill.Equals(other.Fill)
+                && Stroke.Equals(other.Stroke)
+                && Thickness == other.Thickness
                 && ArrayEquals(DashArray, other.DashArray)
                 && LineJoin == other.LineJoin
                 && Aliased == other.Aliased;
+        }
+
+        public override bool Transposed(DrawPolygons other)
+        {
+            return Transposed(Polygons, other.Polygons);
         }
     }
 }

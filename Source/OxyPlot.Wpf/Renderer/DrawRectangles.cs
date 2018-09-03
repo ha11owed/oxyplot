@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 
 namespace OxyPlot.Wpf
 {
@@ -17,6 +16,14 @@ namespace OxyPlot.Wpf
         public IList<OxyRect> Rectangles { get; }
         public OxyColor Stroke { get; }
         public double Thickness { get; }
+
+        public override bool Equals(DrawRectangles other)
+        {
+            return ListEquals(Rectangles, other.Rectangles)
+                && Fill.Equals(other.Fill)
+                && Stroke.Equals(other.Stroke)
+                && Thickness == other.Thickness;
+        }
 
         public override bool Transposed(DrawRectangles other)
         {

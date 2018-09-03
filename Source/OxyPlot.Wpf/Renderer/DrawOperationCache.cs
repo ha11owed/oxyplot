@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -8,7 +9,15 @@ namespace OxyPlot.Wpf
 {
     public class DrawOperationCache
     {
+        /// <summary>
+        /// A collection of the operations that have been executed during a draw call.
+        /// On future draw calls the list of operations is checked for modifications.
+        /// </summary>
         private readonly List<IDrawOperation> operations = new List<IDrawOperation>();
+
+        /// <summary>
+        /// The canvas containing the currently elements of the Plot.
+        /// </summary>
         private Canvas canvas = null;
 
         /// <summary>
@@ -16,8 +25,19 @@ namespace OxyPlot.Wpf
         /// </summary>
         private Rect? clip;
 
+        /// <summary>
+        /// Contains the result of the last <see cref="Draw(IDrawOperation)"/> operation.
+        /// </summary>
         private DrawResult? currentDrawState = null;
+
+        /// <summary>
+        /// The index if the current element of the current draw operation.
+        /// </summary>
         private int currentElementIndex = -1;
+
+        /// <summary>
+        /// The index of the current draw operation.
+        /// </summary>
         private int currentOperationIndex = -1;
 
         /// <summary>
@@ -25,45 +45,67 @@ namespace OxyPlot.Wpf
         /// </summary>
         private string currentToolTip;
 
+        private int statsDifferentCount = 0;
+
+        /// <summary>
+        /// Signals the begining of a the drawing of the plot.
+        /// </summary>
         public void BeginDraw()
         {
             currentOperationIndex = -1;
             currentElementIndex = -1;
             currentDrawState = null;
+
+            statsDifferentCount = 0;
         }
 
+        /// <summary>
+        /// Signals that the plot has finished drawing.
+        /// </summary>
         public void EndDraw()
         {
             currentOperationIndex++;
             ClearAfterCurrent();
 
-            int j = 0;
+            List<FrameworkElement> newChildren = new List<FrameworkElement>();
+
             foreach (IDrawOperation drawOperation in operations)
             {
-                foreach (FrameworkElement fe in drawOperation.UIElements)
+                newChildren.AddRange(drawOperation.UIElements);
+            }
+
+            // Remove all the elements that are not part of the canvas.
+            for (int i = 0; i < canvas.Children.Count; i++)
+            {
+                FrameworkElement frameworkElement = (FrameworkElement)canvas.Children[i];
+                int index = newChildren.IndexOf(frameworkElement);
+                if (index < 0)
                 {
-                    if (canvas.Children.Count == j)
-                    {
-                        canvas.Children.Add(fe);
-                    }
-                    else if (fe == canvas.Children[j])
-                    {
-                        // Nothing to do
-                    }
-                    else
-                    {
-                        canvas.Children.RemoveAt(j);
-                        canvas.Children.Insert(j, fe);
-                    }
-                    j++;
+                    canvas.Children.RemoveAt(i);
+                    i--;
                 }
             }
 
-            int n = canvas.Children.Count - j;
-            if (n > 0)
+            // Add any new elements
+            for (int i = 0; i < newChildren.Count; i++)
             {
-                canvas.Children.RemoveRange(j, n);
+                FrameworkElement frameworkElement = newChildren[i];
+
+                if (canvas.Children.Count > i && canvas.Children[i] == frameworkElement)
+                {
+                    continue;
+                }
+
+                int index = canvas.Children.IndexOf(frameworkElement);
+                if (index >= 0)
+                {
+                    continue;
+                }
+
+                canvas.Children.Insert(i, frameworkElement);
             }
+
+            Debug.WriteLine("DrawOperationCache {0} different", statsDifferentCount);
         }
 
         /// <summary>
@@ -113,39 +155,35 @@ namespace OxyPlot.Wpf
 
                 case DrawResult.Moved:
                 case DrawResult.Different:
-                    if (currentDrawState == DrawResult.Moved)
-                    {
-                        // Clear the elements in the current draw operation.
-                        EndConsume();
-                    }
+                    // Clear the elements in the current draw operation.
+                    EndConsume();
 
-                    // TODO: here we can reuse existing elements in the canvas.Children collection
                     element = new T();
-
-                    if (this.clip != null)
-                    {
-                        element.Clip = new RectangleGeometry(
-                                new Rect(
-                                    this.clip.Value.X - clipOffsetX,
-                                    this.clip.Value.Y - clipOffsetY,
-                                    this.clip.Value.Width,
-                                    this.clip.Value.Height));
-                    }
-
-                    this.operations[currentOperationIndex].Add(element);
-
-                    this.ApplyToolTip(element);
                     break;
             }
 
-            if (element == null)
+            if (this.clip != null)
             {
-                throw new InvalidOperationException();
+                element.Clip = new RectangleGeometry(
+                        new Rect(
+                            this.clip.Value.X - clipOffsetX,
+                            this.clip.Value.Y - clipOffsetY,
+                            this.clip.Value.Width,
+                            this.clip.Value.Height));
             }
+
+            this.ApplyToolTip(element);
+
+            this.operations[currentOperationIndex].Add(element);
 
             return element;
         }
 
+        /// <summary>
+        /// Draw an element and return the comparison with the previous draw sequence.
+        /// </summary>
+        /// <param name="operation">The draw operation.</param>
+        /// <returns>A status code that compares this call with the one from the previous sequence.</returns>
         protected DrawResult Draw(IDrawOperation operation)
         {
             while (TryConsume() != null)
@@ -182,17 +220,40 @@ namespace OxyPlot.Wpf
                 operations.Add(operation);
             }
 
+            if (result == DrawResult.Different)
+            {
+                statsDifferentCount++;
+            }
             currentDrawState = result;
             return result;
         }
 
-        protected T GetNext<T>() where T : FrameworkElement
+        /// <summary>
+        /// Get the
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="clipOffsetX"></param>
+        /// <param name="clipOffsetY"></param>
+        /// <returns></returns>
+        protected T GetNext<T>(double clipOffsetX = 0, double clipOffsetY = 0) where T : FrameworkElement
         {
-            FrameworkElement fe = TryConsume();
-            if (fe == null) { throw new InvalidOperationException(); }
-            if (!(fe is T)) { throw new InvalidOperationException(); }
+            FrameworkElement element = TryConsume();
+            if (element == null || !(element is T))
+            {
+                throw new InvalidOperationException();
+            }
 
-            return (T)fe;
+            if (this.clip != null)
+            {
+                element.Clip = new RectangleGeometry(
+                                new Rect(
+                                    this.clip.Value.X - clipOffsetX,
+                                    this.clip.Value.Y - clipOffsetY,
+                                    this.clip.Value.Width,
+                                    this.clip.Value.Height));
+            }
+
+            return (T)element;
         }
 
         protected void Init(Canvas canvas)
@@ -225,9 +286,11 @@ namespace OxyPlot.Wpf
             }
         }
 
+        /// <summary>
+        /// Clear the remaining operations.
+        /// </summary>
         private void ClearAfterCurrent()
         {
-            // Clear the remaining operations.
             int n = operations.Count - currentOperationIndex;
             if (n > 0)
             {

@@ -17,12 +17,17 @@ namespace OxyPlot.Wpf
         public OxyColor Stroke { get; }
         public double Thickness { get; }
 
+        public override bool Equals(DrawEllipses other)
+        {
+            return ListEquals(Rectangles, other.Rectangles)
+                && Fill.Equals(other.Fill)
+                && Stroke.Equals(other.Stroke)
+                && Thickness == other.Thickness;
+        }
+
         public override bool Transposed(DrawEllipses other)
         {
-            return Transposed(Rectangles, other.Rectangles)
-                && Equals(Fill, other.Fill)
-                && Equals(Stroke, other.Stroke)
-                && Equals(Thickness, other.Thickness);
+            return Transposed(Rectangles, other.Rectangles);
         }
     }
 }
