@@ -6,10 +6,10 @@ namespace OxyPlot.Wpf
     {
         public DrawEllipses(IList<OxyRect> rectangles, OxyColor fill, OxyColor stroke, double thickness)
         {
-            Rectangles = rectangles;
-            Fill = fill;
-            Stroke = stroke;
-            Thickness = thickness;
+            this.Rectangles = rectangles;
+            this.Fill = fill;
+            this.Stroke = stroke;
+            this.Thickness = thickness;
         }
 
         public OxyColor Fill { get; }
@@ -19,15 +19,18 @@ namespace OxyPlot.Wpf
 
         public override bool Equals(DrawEllipses other)
         {
-            return ListEquals(Rectangles, other.Rectangles)
-                && Fill.Equals(other.Fill)
-                && Stroke.Equals(other.Stroke)
-                && Thickness == other.Thickness;
+            return ListEquals(this.Rectangles, other.Rectangles)
+                && this.Fill.Equals(other.Fill)
+                && this.Stroke.Equals(other.Stroke)
+                && this.Thickness == other.Thickness;
         }
 
         public override bool Transposed(DrawEllipses other)
         {
-            return Transposed(Rectangles, other.Rectangles);
+            return Transposed(this.Rectangles, other.Rectangles)
+                && this.Fill.Equals(other.Fill)
+                && this.Stroke.Equals(other.Stroke)
+                && this.Thickness == other.Thickness;
         }
     }
 }

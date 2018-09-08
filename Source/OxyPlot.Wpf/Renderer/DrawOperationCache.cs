@@ -46,6 +46,8 @@ namespace OxyPlot.Wpf
         private string currentToolTip;
 
         private int statsDifferentCount = 0;
+        private int statsEqualCount = 0;
+        private int statsMovedCount = 0;
 
         /// <summary>
         /// Signals the begining of a the drawing of the plot.
@@ -57,6 +59,8 @@ namespace OxyPlot.Wpf
             currentDrawState = null;
 
             statsDifferentCount = 0;
+            statsEqualCount = 0;
+            statsMovedCount = 0;
         }
 
         /// <summary>
@@ -66,6 +70,9 @@ namespace OxyPlot.Wpf
         {
             currentOperationIndex++;
             ClearAfterCurrent();
+
+            int statInsertCount = 0;
+            int statRemoveCount = 0;
 
             List<FrameworkElement> newChildren = new List<FrameworkElement>();
 
@@ -83,6 +90,7 @@ namespace OxyPlot.Wpf
                 {
                     canvas.Children.RemoveAt(i);
                     i--;
+                    statRemoveCount++;
                 }
             }
 
@@ -103,9 +111,10 @@ namespace OxyPlot.Wpf
                 }
 
                 canvas.Children.Insert(i, frameworkElement);
+                statInsertCount++;
             }
 
-            Debug.WriteLine("DrawOperationCache {0} different", statsDifferentCount);
+            //Console.WriteLine("DrawOperationCache {0} different, {1} moved, {2} equal. Insert|Removes: {3}|{4}", statsDifferentCount, statsMovedCount, statsEqualCount, statInsertCount, statRemoveCount);
         }
 
         /// <summary>
@@ -150,8 +159,9 @@ namespace OxyPlot.Wpf
             switch (currentDrawState)
             {
                 case DrawResult.Equal:
-                    element = (T)TryConsume();
-                    break;
+                    throw new InvalidOperationException("Cannot create and add if the operations are equal");
+                //element = (T)TryConsume();
+                //break;
 
                 case DrawResult.Moved:
                 case DrawResult.Different:
@@ -220,9 +230,19 @@ namespace OxyPlot.Wpf
                 operations.Add(operation);
             }
 
-            if (result == DrawResult.Different)
+            switch (result)
             {
-                statsDifferentCount++;
+                case DrawResult.Equal:
+                    statsEqualCount++;
+                    break;
+
+                case DrawResult.Moved:
+                    statsMovedCount++;
+                    break;
+
+                case DrawResult.Different:
+                    statsDifferentCount++;
+                    break;
             }
             currentDrawState = result;
             return result;
@@ -237,6 +257,11 @@ namespace OxyPlot.Wpf
         /// <returns></returns>
         protected T GetNext<T>(double clipOffsetX = 0, double clipOffsetY = 0) where T : FrameworkElement
         {
+            if (currentDrawState == DrawResult.Equal)
+            {
+                throw new InvalidOperationException("");
+            }
+
             FrameworkElement element = TryConsume();
             if (element == null || !(element is T))
             {

@@ -42,7 +42,13 @@ namespace OxyPlot.Wpf
 
         public override bool Transposed(DrawPolygons other)
         {
-            return Transposed(Polygons, other.Polygons);
+            return Transposed(Polygons, other.Polygons)
+                && Fill.Equals(other.Fill)
+                && Stroke.Equals(other.Stroke)
+                && Thickness == other.Thickness
+                && ArrayEquals(DashArray, other.DashArray)
+                && LineJoin == other.LineJoin
+                && Aliased == other.Aliased;
         }
     }
 }

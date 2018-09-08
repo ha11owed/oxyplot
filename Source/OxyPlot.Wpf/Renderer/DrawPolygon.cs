@@ -41,7 +41,13 @@ namespace OxyPlot.Wpf
 
         public override bool Transposed(DrawPolygon other)
         {
-            return Transposed(Points, other.Points);
+            return Transposed(Points, other.Points)
+                && Fill.Equals(other.Fill)
+                && Stroke.Equals(other.Stroke)
+                && Thickness == other.Thickness
+                && ArrayEquals(DashArray, other.DashArray)
+                && LineJoin == other.LineJoin
+                && Aliased == other.Aliased;
         }
     }
 }

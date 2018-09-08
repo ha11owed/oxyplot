@@ -1,27 +1,34 @@
-﻿using System;
-
-namespace OxyPlot.Wpf
+﻿namespace OxyPlot.Wpf
 {
+    /// <summary>
+    /// Draw an image
+    /// </summary>
     internal class DrawImage : ADrawOperation<DrawImage>
     {
-        public DrawImage(OxyImage source,
-            double srcX, double srcY,
-            double srcWidth, double srcHeight,
-            double destX, double destY,
-            double destWidth, double destHeight,
-            double opacity, bool interpolate)
+        public DrawImage(
+            OxyImage source,
+            double srcX,
+            double srcY,
+            double srcWidth,
+            double srcHeight,
+            double destX,
+            double destY,
+            double destWidth,
+            double destHeight,
+            double opacity,
+            bool interpolate)
         {
-            Source = source;
-            SrcX = srcX;
-            SrcY = srcY;
-            SrcWidth = srcWidth;
-            SrcHeight = srcHeight;
-            DestX = destX;
-            DestY = destY;
-            DestWidth = destWidth;
-            DestHeight = destHeight;
-            Opacity = opacity;
-            Interpolate = interpolate;
+            this.Source = source;
+            this.SrcX = srcX;
+            this.SrcY = srcY;
+            this.SrcWidth = srcWidth;
+            this.SrcHeight = srcHeight;
+            this.DestX = destX;
+            this.DestY = destY;
+            this.DestWidth = destWidth;
+            this.DestHeight = destHeight;
+            this.Opacity = opacity;
+            this.Interpolate = interpolate;
         }
 
         public double DestHeight { get; }

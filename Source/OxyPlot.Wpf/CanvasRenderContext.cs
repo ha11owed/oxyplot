@@ -153,7 +153,9 @@ namespace OxyPlot.Wpf
         {
             DrawResult drawResult = this.Draw(new DrawEllipse(rect, fill, stroke, thickness));
             if (drawResult == DrawResult.Equal)
+            {
                 return;
+            }
 
             var e = this.CreateAndAdd<Ellipse>(rect.Left, rect.Top);
             if (drawResult == DrawResult.Different)
@@ -196,6 +198,7 @@ namespace OxyPlot.Wpf
                     {
                         path.Fill = this.GetCachedBrush(fill);
                     }
+
                     break;
 
                 case DrawResult.Moved:
@@ -244,12 +247,7 @@ namespace OxyPlot.Wpf
                 return;
             }
 
-            DrawResult drawResult = this.Draw(new DrawImage(source,
-                srcX, srcY,
-                srcWidth, srcHeight,
-                destX, destY,
-                destWidth, destHeight,
-                opacity, interpolate));
+            DrawResult drawResult = this.Draw(new DrawImage(source, srcX, srcY, srcWidth, srcHeight, destX, destY, destWidth, destHeight, opacity, interpolate));
             Image image = null;
             switch (drawResult)
             {
@@ -287,6 +285,7 @@ namespace OxyPlot.Wpf
 
                 case DrawResult.Moved:
                     image = this.GetNext<Image>(destX, destY);
+
                     // Set the position of the image
                     Canvas.SetLeft(image, destX);
                     Canvas.SetTop(image, destY);
@@ -365,7 +364,9 @@ namespace OxyPlot.Wpf
 
             DrawResult drawResult = this.Draw(new DrawLine(points, stroke, thickness, dashArray, lineJoin, aliased, DrawLineType.Segments));
             if (drawResult == DrawResult.Equal)
+            {
                 return;
+            }
 
             Path path = null;
             PathGeometry pathGeometry = null;
@@ -437,6 +438,7 @@ namespace OxyPlot.Wpf
                     {
                         e.Fill = this.GetCachedBrush(fill);
                     }
+
                     break;
 
                 case DrawResult.Moved:
@@ -469,7 +471,9 @@ namespace OxyPlot.Wpf
         {
             DrawResult drawResult = this.Draw(new DrawPolygons(polygons, fill, stroke, thickness, dashArray, lineJoin, aliased));
             if (drawResult == DrawResult.Equal)
+            {
                 return;
+            }
 
             var usg = this.UseStreamGeometry;
             Path path = null;
@@ -596,6 +600,7 @@ namespace OxyPlot.Wpf
                     {
                         e.Fill = this.GetCachedBrush(fill);
                     }
+
                     break;
 
                 case DrawResult.Moved:
@@ -634,6 +639,7 @@ namespace OxyPlot.Wpf
                     {
                         path.Fill = this.GetCachedBrush(fill);
                     }
+
                     break;
 
                 case DrawResult.Moved:
@@ -676,84 +682,101 @@ namespace OxyPlot.Wpf
             OxySize? maxSize)
         {
             DrawResult drawResult = this.Draw(new DrawText(p, text, fill, fontFamily, fontSize, fontWeight, rotate, halign, valign, maxSize));
-            if (drawResult == DrawResult.Equal)
+
+            TextBlock tb = null;
+            TransformGroup transform = null;
+            switch (drawResult)
             {
-                return;
-            }
+                case DrawResult.Equal:
+                    return;
 
-            var tb = this.CreateAndAdd<TextBlock>();
-            tb.Text = text;
-            tb.Foreground = this.GetCachedBrush(fill);
-            if (fontFamily != null)
-            {
-                tb.FontFamily = this.GetCachedFontFamily(fontFamily);
-            }
-
-            if (fontSize > 0)
-            {
-                tb.FontSize = fontSize;
-            }
-
-            if (fontWeight > 0)
-            {
-                tb.FontWeight = GetFontWeight(fontWeight);
-            }
-
-            TextOptions.SetTextFormattingMode(tb, this.TextFormattingMode);
-
-            double dx = 0;
-            double dy = 0;
-
-            if (maxSize != null || halign != HorizontalAlignment.Left || valign != VerticalAlignment.Top)
-            {
-                tb.Measure(new Size(1000, 1000));
-                var size = tb.DesiredSize;
-                if (maxSize != null)
-                {
-                    if (size.Width > maxSize.Value.Width + 1e-3)
+                case DrawResult.Different:
+                    tb = this.CreateAndAdd<TextBlock>();
+                    tb.Text = text;
+                    tb.Foreground = this.GetCachedBrush(fill);
+                    if (fontFamily != null)
                     {
-                        size.Width = Math.Max(maxSize.Value.Width, 0);
+                        tb.FontFamily = this.GetCachedFontFamily(fontFamily);
                     }
 
-                    if (size.Height > maxSize.Value.Height + 1e-3)
+                    if (fontSize > 0)
                     {
-                        size.Height = Math.Max(maxSize.Value.Height, 0);
+                        tb.FontSize = fontSize;
                     }
 
-                    tb.Width = size.Width;
-                    tb.Height = size.Height;
-                }
+                    if (fontWeight > 0)
+                    {
+                        tb.FontWeight = GetFontWeight(fontWeight);
+                    }
 
-                if (halign == HorizontalAlignment.Center)
-                {
-                    dx = -size.Width / 2;
-                }
+                    TextOptions.SetTextFormattingMode(tb, this.TextFormattingMode);
 
-                if (halign == HorizontalAlignment.Right)
-                {
-                    dx = -size.Width;
-                }
+                    double dx = 0;
+                    double dy = 0;
 
-                if (valign == VerticalAlignment.Middle)
-                {
-                    dy = -size.Height / 2;
-                }
+                    if (maxSize != null || halign != HorizontalAlignment.Left || valign != VerticalAlignment.Top)
+                    {
+                        tb.Measure(new Size(1000, 1000));
+                        var size = tb.DesiredSize;
+                        if (maxSize != null)
+                        {
+                            if (size.Width > maxSize.Value.Width + 1e-3)
+                            {
+                                size.Width = Math.Max(maxSize.Value.Width, 0);
+                            }
 
-                if (valign == VerticalAlignment.Bottom)
-                {
-                    dy = -size.Height;
-                }
+                            if (size.Height > maxSize.Value.Height + 1e-3)
+                            {
+                                size.Height = Math.Max(maxSize.Value.Height, 0);
+                            }
+
+                            tb.Width = size.Width;
+                            tb.Height = size.Height;
+                        }
+
+                        if (halign == HorizontalAlignment.Center)
+                        {
+                            dx = -size.Width / 2;
+                        }
+
+                        if (halign == HorizontalAlignment.Right)
+                        {
+                            dx = -size.Width;
+                        }
+
+                        if (valign == VerticalAlignment.Middle)
+                        {
+                            dy = -size.Height / 2;
+                        }
+
+                        if (valign == VerticalAlignment.Bottom)
+                        {
+                            dy = -size.Height;
+                        }
+
+                        transform = new TransformGroup();
+                        transform.Children.Add(new TranslateTransform(dx, dy));
+                        if (Math.Abs(rotate) > double.Epsilon)
+                        {
+                            transform.Children.Add(new RotateTransform(rotate));
+                        }
+
+                        transform.Children.Add(new TranslateTransform(p.X, p.Y));
+                        tb.RenderTransform = transform;
+                    }
+
+                    break;
+
+                case DrawResult.Moved:
+                    tb = this.GetNext<TextBlock>();
+                    tb.Text = text;
+                    transform = (TransformGroup)tb.RenderTransform;
+                    TranslateTransform translate = (TranslateTransform)transform.Children.Last();
+                    translate.X = p.X;
+                    translate.Y = p.Y;
+                    break;
             }
 
-            var transform = new TransformGroup();
-            transform.Children.Add(new TranslateTransform(dx, dy));
-            if (Math.Abs(rotate) > double.Epsilon)
-            {
-                transform.Children.Add(new RotateTransform(rotate));
-            }
-
-            transform.Children.Add(new TranslateTransform(p.X, p.Y));
-            tb.RenderTransform = transform;
             if (tb.Clip != null)
             {
                 tb.Clip.Transform = tb.RenderTransform.Inverse as Transform;
@@ -902,7 +925,9 @@ namespace OxyPlot.Wpf
         {
             DrawResult drawResult = this.Draw(new DrawLine(points, stroke, thickness, dashArray, lineJoin, aliased, DrawLineType.Balanced));
             if (drawResult == DrawResult.Equal)
+            {
                 return;
+            }
 
             // balance the number of points per polyline and the number of polylines
             var numPointsPerPolyline = Math.Max(points.Count / MaxPolylinesPerLine, MinPointsPerPolyline);
@@ -980,7 +1005,9 @@ namespace OxyPlot.Wpf
         {
             DrawResult drawResult = this.Draw(new DrawLine(points, stroke, thickness, dashArray, lineJoin, aliased, DrawLineType.StreamGeometry));
             if (drawResult == DrawResult.Equal)
+            {
                 return;
+            }
 
             StreamGeometry streamGeometry = null;
             StreamGeometryContext streamGeometryContext = null;

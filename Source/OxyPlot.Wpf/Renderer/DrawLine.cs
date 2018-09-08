@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Linq;
 
 namespace OxyPlot.Wpf
 {
@@ -6,37 +7,49 @@ namespace OxyPlot.Wpf
     {
         public DrawLine(IList<ScreenPoint> points, OxyColor stroke, double thickness, double[] dashArray, LineJoin lineJoin, bool aliased, DrawLineType type)
         {
-            Points = points;
-            Stroke = stroke;
-            Thickness = thickness;
-            DashArray = dashArray;
-            LineJoin = lineJoin;
-            Aliased = aliased;
-            Type = type;
+            this.Points = (points == null) ? null : points.ToList();
+            this.Stroke = stroke;
+            this.Thickness = thickness;
+            this.DashArray = dashArray;
+            this.LineJoin = lineJoin;
+            this.Aliased = aliased;
+            this.Type = type;
         }
 
         public bool Aliased { get; }
+
         public double[] DashArray { get; }
+
         public LineJoin LineJoin { get; }
+
         public IList<ScreenPoint> Points { get; }
+
         public OxyColor Stroke { get; }
+
         public double Thickness { get; }
+
         public DrawLineType Type { get; }
 
         public override bool Equals(DrawLine other)
         {
-            return Aliased == other.Aliased
-                && ArrayEquals(DashArray, other.DashArray)
-                && LineJoin == other.LineJoin
-                && ListEquals(Points, other.Points)
-                && Stroke == other.Stroke
-                && Thickness == other.Thickness
-                && Type == other.Type;
+            return ListEquals(this.Points, other.Points)
+                && this.Aliased == other.Aliased
+                && ArrayEquals(this.DashArray, other.DashArray)
+                && this.LineJoin == other.LineJoin
+                && this.Stroke == other.Stroke
+                && this.Thickness == other.Thickness
+                && this.Type == other.Type;
         }
 
         public override bool Transposed(DrawLine other)
         {
-            return Transposed(Points, other.Points);
+            return Transposed(this.Points, other.Points)
+                && this.Aliased == other.Aliased
+                && ArrayEquals(this.DashArray, other.DashArray)
+                && this.LineJoin == other.LineJoin
+                && this.Stroke == other.Stroke
+                && this.Thickness == other.Thickness
+                && this.Type == other.Type;
         }
     }
 }

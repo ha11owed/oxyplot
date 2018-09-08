@@ -66,6 +66,10 @@ namespace OxyPlot.Wpf
         /// </summary>
         private bool isVisibleToUserCache;
 
+        private Size? lastArrangeOverride;
+
+        private Size? lastFinalSize;
+
         /// <summary>
         /// The mouse down point.
         /// </summary>
@@ -91,7 +95,7 @@ namespace OxyPlot.Wpf
         /// </summary>
         protected PlotBase()
         {
-            this.DisconnectCanvasWhileUpdating = true;
+            this.DisconnectCanvasWhileUpdating = false;
             this.trackerDefinitions = new ObservableCollection<TrackerDefinition>();
             this.Loaded += this.OnLoaded;
             this.LayoutUpdated += this.OnLayoutUpdated;
@@ -399,7 +403,12 @@ namespace OxyPlot.Wpf
                 }
             }
 
-            return base.ArrangeOverride(finalSize);
+            if (finalSize != lastFinalSize)
+            {
+                lastFinalSize = finalSize;
+                lastArrangeOverride = base.ArrangeOverride(finalSize);
+            }
+            return lastArrangeOverride.Value;
         }
 
         /// <summary>

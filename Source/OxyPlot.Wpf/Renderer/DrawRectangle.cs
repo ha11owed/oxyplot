@@ -25,7 +25,10 @@
 
         public override bool Transposed(DrawRectangle other)
         {
-            return Transposed(Rect, other.Rect);
+            return Transposed(Rect, other.Rect)
+                && Fill.Equals(other.Fill)
+                && Stroke.Equals(other.Stroke)
+                && Thickness == other.Thickness;
         }
     }
 }

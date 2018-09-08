@@ -1,13 +1,4 @@
-﻿// --------------------------------------------------------------------------------------------------------------------
-// <copyright file="CanvasRenderContext.cs" company="OxyPlot">
-//   Copyright (c) 2014 OxyPlot contributors
-// </copyright>
-// <summary>
-//   Implements <see cref="IRenderContext" /> for <see cref="System.Windows.Controls.Canvas" />.
-// </summary>
-// --------------------------------------------------------------------------------------------------------------------
-
-namespace OxyPlot.Wpf
+﻿namespace OxyPlot.Wpf
 {
     internal class DrawText : ADrawOperation<DrawText>
     {
@@ -56,7 +47,19 @@ namespace OxyPlot.Wpf
 
         public override bool Transposed(DrawText other)
         {
-            return Transposed(Point, other.Point);
+            // The check for text equality is replaced with a check for text length
+            // since we assume that the TextBlock size is not affected by the actual text.
+            // This assumption could bite us in the ass...
+            return Transposed(Point, other.Point)
+                && (Text == other.Text || (Text != null && other.Text != null && Text.Length == other.Text.Length))
+                && Fill.Equals(other.Fill)
+                && Equals(FontFamily, other.FontFamily)
+                && FontSize == other.FontSize
+                && FontWeight == other.FontWeight
+                && Rotate == other.Rotate
+                && VAlign == other.VAlign
+                && HAlign == other.HAlign
+                && Equals(MaxSize, other.MaxSize);
         }
     }
 }

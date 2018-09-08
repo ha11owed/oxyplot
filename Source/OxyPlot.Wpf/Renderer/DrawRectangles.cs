@@ -28,9 +28,9 @@ namespace OxyPlot.Wpf
         public override bool Transposed(DrawRectangles other)
         {
             return Transposed(Rectangles, other.Rectangles)
-                && Equals(Fill, other.Fill)
-                && Equals(Stroke, other.Stroke)
-                && Equals(Thickness, other.Thickness);
+                && Fill.Equals(other.Fill)
+                && Stroke.Equals(other.Stroke)
+                && Thickness == other.Thickness;
         }
     }
 }
