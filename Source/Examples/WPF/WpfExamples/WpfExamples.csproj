@@ -152,6 +152,10 @@
     <Compile Include="Examples\MemoryTest\Window2.xaml.cs">
       <DependentUpon>Window2.xaml</DependentUpon>
     </Compile>
+    <Compile Include="Examples\RefreshAnnotationsDemo\MainWindow.xaml.cs">
+      <DependentUpon>MainWindow.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Examples\RefreshAnnotationsDemo\MainViewModel.cs" />
     <Compile Include="Examples\ScrollViewerDemo\MainWindow.xaml.cs">
       <DependentUpon>MainWindow.xaml</DependentUpon>
     </Compile>
@@ -266,6 +270,10 @@
       <SubType>Designer</SubType>
     </Page>
     <Page Include="Examples\MemoryTest\Window2.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Examples\RefreshAnnotationsDemo\MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
