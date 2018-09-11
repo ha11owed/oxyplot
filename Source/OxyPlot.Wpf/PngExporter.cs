@@ -32,9 +32,9 @@ namespace OxyPlot.Wpf
         }
 
         /// <summary>
-        /// Gets or sets the width of the output image.
+        /// Gets or sets the background color.
         /// </summary>
-        public int Width { get; set; }
+        public OxyColor Background { get; set; }
 
         /// <summary>
         /// Gets or sets the height of the output image.
@@ -48,9 +48,9 @@ namespace OxyPlot.Wpf
         public int Resolution { get; set; }
 
         /// <summary>
-        /// Gets or sets the background color.
+        /// Gets or sets the width of the output image.
         /// </summary>
-        public OxyColor Background { get; set; }
+        public int Width { get; set; }
 
         /// <summary>
         /// Exports the specified plot model to a file.
@@ -135,6 +135,7 @@ namespace OxyPlot.Wpf
 
             model.Update(true);
             model.Render(rc, canvas.Width, canvas.Height);
+            rc.EndDraw();
 
             canvas.UpdateLayout();
 
